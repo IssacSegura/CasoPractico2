@@ -8,111 +8,126 @@ package com.caso.casopractico.controller;
  *
  * @author issac
  */
+
+
 import com.caso.casopractico.domain.Usuario;
 import com.caso.casopractico.service.UsuarioService;
 import com.caso.casopractico.service.RolService;
-import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
 @Controller
-@RequestMapping("/usuario")
+@RequestMapping("/usuarios")
+@PreAuthorize("hasRole('ADMIN')")
 public class UsuarioController {
-
-    private final UsuarioService usuarioService;
-    private final RolService rolService;
-
-    public UsuarioController(UsuarioService usuarioService, RolService rolService) {
-        this.usuarioService = usuarioService;
-        this.rolService = rolService;
+    
+    @Autowired
+    private UsuarioService usuarioService;
+    
+    @Autowired
+    private RolService rolService;
+    
+    @GetMapping
+    public String listarUsuarios(Model model) {
+        model.addAttribute("usuarios", usuarioService.findAll());
+        model.addAttribute("title", "Gestión de Usuarios");
+        return "usuarios/listado";
     }
-
-    @GetMapping("/listado")
-    public String listado(Model model) {
-        var usuarios = usuarioService.obtenerTodos();
-        var roles = rolService.obtenerTodos();
-        model.addAttribute("usuarios", usuarios);
-        model.addAttribute("roles", roles);
-        model.addAttribute("totalUsuarios", usuarios.size());
-        return "usuario/listado";
-    }
-
+    
     @GetMapping("/nuevo")
-    public String nuevo(Model model) {
+    public String mostrarFormularioCreacion(Model model) {
         model.addAttribute("usuario", new Usuario());
-        model.addAttribute("roles", rolService.obtenerTodos());
-        return "usuario/modifica";
+        model.addAttribute("roles", rolService.findAll());
+        model.addAttribute("title", "Nuevo Usuario");
+        return "usuarios/formulario";
     }
-
+    
     @PostMapping("/guardar")
-    public String guardar(@Valid @ModelAttribute Usuario usuario, 
-                         BindingResult result,
-                         RedirectAttributes redirectAttributes,
-                         Model model) {
-        if (result.hasErrors()) {
-            model.addAttribute("roles", rolService.obtenerTodos());
-            return "usuario/modifica";
-        }
-        
+    public String guardarUsuario(@ModelAttribute Usuario usuario,
+                                 @RequestParam Long rolId,
+                                 RedirectAttributes redirectAttributes) {
         try {
-            usuarioService.guardar(usuario);
-            redirectAttributes.addFlashAttribute("mensaje", "Usuario guardado exitosamente");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "success");
+            // Validar email único
+            if (usuario.getId() == null && usuarioService.existeEmail(usuario.getEmail())) {
+                redirectAttributes.addFlashAttribute("error", "El email ya está registrado");
+                return "redirect:/usuarios/nuevo";
+            }
+            
+            // Asignar rol
+            usuario.setRol(rolService.findById(rolId));
+            
+            // Guardar SIN encriptar contraseña
+            usuarioService.save(usuario);
+            redirectAttributes.addFlashAttribute("success", "Usuario guardado exitosamente");
+            
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("mensaje", "Error al guardar usuario: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("tipoMensaje", "danger");
+            redirectAttributes.addFlashAttribute("error", "Error al guardar usuario: " + e.getMessage());
         }
         
-        return "redirect:/usuario/listado";
+        return "redirect:/usuarios";
     }
-
+    
     @GetMapping("/editar/{id}")
-    public String editar(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
-        var usuarioOpt = usuarioService.obtenerPorId(id);
-        if (usuarioOpt.isEmpty()) {
-            redirectAttributes.addFlashAttribute("mensaje", "Usuario no encontrado");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "warning");
-            return "redirect:/usuario/listado";
-        }
-        
-        Usuario usuario = usuarioOpt.get();
-        usuario.setPassword(""); // Limpiar contraseña para edición
-        
+    public String mostrarFormularioEdicion(@PathVariable Long id, Model model) {
+        Usuario usuario = usuarioService.findById(id);
         model.addAttribute("usuario", usuario);
-        model.addAttribute("roles", rolService.obtenerTodos());
-        return "usuario/modifica";
+        model.addAttribute("roles", rolService.findAll());
+        model.addAttribute("title", "Editar Usuario");
+        return "usuarios/formulario";
     }
-
-    @PostMapping("/eliminar/{id}")
-    public String eliminar(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    
+    @GetMapping("/eliminar/{id}")
+    public String eliminarUsuario(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
-            usuarioService.eliminar(id);
-            redirectAttributes.addFlashAttribute("mensaje", "Usuario eliminado exitosamente");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "success");
-        } catch (IllegalArgumentException e) {
-            redirectAttributes.addFlashAttribute("mensaje", "Usuario no encontrado");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "warning");
-        } catch (IllegalStateException e) {
-            redirectAttributes.addFlashAttribute("mensaje", "No se puede eliminar el usuario. Tiene datos asociados");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "danger");
+            usuarioService.deleteById(id);
+            redirectAttributes.addFlashAttribute("success", "Usuario eliminado exitosamente");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error al eliminar usuario: " + e.getMessage());
         }
-        
-        return "redirect:/usuario/listado";
+        return "redirect:/usuarios";
     }
-
-    @GetMapping("/detalle/{id}")
-    public String detalle(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
-        var usuarioOpt = usuarioService.obtenerPorId(id);
-        if (usuarioOpt.isEmpty()) {
-            redirectAttributes.addFlashAttribute("mensaje", "Usuario no encontrado");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "warning");
-            return "redirect:/usuario/listado";
+    
+    @PostMapping("/buscar")
+    public String buscarUsuarios(@RequestParam String criterio,
+                                 @RequestParam String valor,
+                                 Model model) {
+        try {
+            List<Usuario> resultados = null;
+            
+            switch (criterio) {
+                case "rol":
+                    Long rolId = Long.parseLong(valor);
+                    resultados = usuarioService.buscarPorRol(rolId);
+                    break;
+                    
+                case "fecha":
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                    LocalDateTime fecha = LocalDateTime.parse(valor + "T00:00:00");
+                    LocalDateTime inicio = fecha;
+                    LocalDateTime fin = fecha.plusDays(1);
+                    resultados = usuarioService.buscarPorFechaCreacion(inicio, fin);
+                    break;
+                    
+                case "texto":
+                    resultados = usuarioService.buscarPorTexto(valor);
+                    break;
+            }
+            
+            model.addAttribute("usuarios", resultados);
+            model.addAttribute("title", "Resultados de Búsqueda");
+            
+        } catch (Exception e) {
+            model.addAttribute("error", "Error en la búsqueda: " + e.getMessage());
         }
         
-        model.addAttribute("usuario", usuarioOpt.get());
-        return "usuario/detalle";
+        return "usuarios/listado";
     }
 }

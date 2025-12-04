@@ -8,12 +8,12 @@ package com.caso.casopractico.service;
  *
  * @author issac
  */
-package com.caso.service;
 
-import com.caso.domain.Usuario;
-import com.caso.domain.Rol;
-import com.caso.repository.UsuarioRepository;
-import com.caso.repository.RolRepository;
+
+import com.caso.casopractico.domain.Usuario;
+import com.caso.casopractico.domain.Rol;
+import com.caso.casopractico.repository.UsuarioRepository;
+import com.caso.casopractico.repository.RolRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

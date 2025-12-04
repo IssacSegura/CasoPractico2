@@ -8,87 +8,66 @@ package com.caso.casopractico.controller;
  *
  * @author issac
  */
+
+
 import com.caso.casopractico.domain.Rol;
 import com.caso.casopractico.service.RolService;
-import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequestMapping("/rol")
+@RequestMapping("/roles")
+@PreAuthorize("hasRole('ADMIN')")
 public class RolController {
-
-    private final RolService rolService;
-
-    public RolController(RolService rolService) {
-        this.rolService = rolService;
+    
+    @Autowired
+    private RolService rolService;
+    
+    @GetMapping
+    public String listarRoles(Model model) {
+        model.addAttribute("roles", rolService.findAll());
+        model.addAttribute("title", "Gestión de Roles");
+        return "roles/listado";
     }
-
-    @GetMapping("/listado")
-    public String listado(Model model) {
-        var roles = rolService.obtenerTodos();
-        model.addAttribute("roles", roles);
-        model.addAttribute("totalRoles", roles.size());
-        return "rol/listado";
-    }
-
+    
     @GetMapping("/nuevo")
-    public String nuevo(Model model) {
+    public String mostrarFormularioCreacion(Model model) {
         model.addAttribute("rol", new Rol());
-        return "rol/modifica";
+        model.addAttribute("title", "Nuevo Rol");
+        return "roles/formulario";
     }
-
+    
     @PostMapping("/guardar")
-    public String guardar(@Valid @ModelAttribute Rol rol, 
-                         BindingResult result,
-                         RedirectAttributes redirectAttributes,
-                         Model model) {
-        if (result.hasErrors()) {
-            return "rol/modifica";
-        }
-        
+    public String guardarRol(@ModelAttribute Rol rol, RedirectAttributes redirectAttributes) {
         try {
-            rolService.guardar(rol);
-            redirectAttributes.addFlashAttribute("mensaje", "Rol guardado exitosamente");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "success");
+            rolService.save(rol);
+            redirectAttributes.addFlashAttribute("success", "Rol guardado exitosamente");
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("mensaje", "Error al guardar rol: " + e.getMessage());
-            redirectAttributes.addFlashAttribute("tipoMensaje", "danger");
+            redirectAttributes.addFlashAttribute("error", "Error al guardar rol: " + e.getMessage());
         }
-        
-        return "redirect:/rol/listado";
+        return "redirect:/roles";
     }
-
+    
     @GetMapping("/editar/{id}")
-    public String editar(@PathVariable Long id, Model model, RedirectAttributes redirectAttributes) {
-        var rolOpt = rolService.obtenerPorId(id);
-        if (rolOpt.isEmpty()) {
-            redirectAttributes.addFlashAttribute("mensaje", "Rol no encontrado");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "warning");
-            return "redirect:/rol/listado";
-        }
-        
-        model.addAttribute("rol", rolOpt.get());
-        return "rol/modifica";
+    public String mostrarFormularioEdicion(@PathVariable Long id, Model model) {
+        Rol rol = rolService.findById(id);
+        model.addAttribute("rol", rol);
+        model.addAttribute("title", "Editar Rol");
+        return "roles/formulario";
     }
-
-    @PostMapping("/eliminar/{id}")
-    public String eliminar(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+    
+    @GetMapping("/eliminar/{id}")
+    public String eliminarRol(@PathVariable Long id, RedirectAttributes redirectAttributes) {
         try {
-            rolService.eliminar(id);
-            redirectAttributes.addFlashAttribute("mensaje", "Rol eliminado exitosamente");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "success");
-        } catch (IllegalArgumentException e) {
-            redirectAttributes.addFlashAttribute("mensaje", "Rol no encontrado");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "warning");
-        } catch (IllegalStateException e) {
-            redirectAttributes.addFlashAttribute("mensaje", "No se puede eliminar el rol. Tiene usuarios asociados");
-            redirectAttributes.addFlashAttribute("tipoMensaje", "danger");
+            rolService.deleteById(id);
+            redirectAttributes.addFlashAttribute("success", "Rol eliminado exitosamente");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error al eliminar rol: " + e.getMessage());
         }
-        
-        return "redirect:/rol/listado";
+        return "redirect:/roles";
     }
 }
