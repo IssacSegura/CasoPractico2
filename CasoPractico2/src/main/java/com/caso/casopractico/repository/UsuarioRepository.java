@@ -8,57 +8,45 @@ package com.caso.casopractico.repository;
  *
  * @author issac
  */
+
 import com.caso.casopractico.domain.Usuario;
 import com.caso.casopractico.domain.Rol;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
-
-    // Consulta derivada: Buscar usuario por email y activo
-    Optional<Usuario> findByEmailAndActivoTrue(String email);
-
-    // Consulta derivada: Buscar usuarios por rol
+    
+    // Consultas derivadas requeridas
     List<Usuario> findByRol(Rol rol);
-
-    // Consulta derivada: Buscar usuarios activos
-    List<Usuario> findByActivoTrue();
-
-    // Consulta derivada: Buscar usuarios por rango de fechas de creación
-    List<Usuario> findByFechaCreacionBetween(LocalDateTime fechaInicio, LocalDateTime fechaFin);
-
-    // Consulta derivada: Buscar usuarios por coincidencia parcial en nombre o email
-    List<Usuario> findByNombreContainingIgnoreCaseOrEmailContainingIgnoreCase(String nombre, String email);
-
-    // Consulta personalizada: Contar usuarios activos vs inactivos
-    @Query("SELECT u.activo, COUNT(u) FROM Usuario u GROUP BY u.activo")
-    List<Object[]> contarUsuariosPorEstado();
-
-    // Consulta personalizada: Obtener usuarios ordenados por fecha de creación
-    @Query("SELECT u FROM Usuario u ORDER BY u.fechaCreacion DESC")
-    List<Usuario> findAllOrderByFechaCreacionDesc();
-
-    // Consulta personalizada: Buscar usuarios por rol (nombre del rol)
-    @Query("SELECT u FROM Usuario u WHERE u.rol.nombre = :nombreRol")
-    List<Usuario> buscarPorNombreRol(@Param("nombreRol") String nombreRol);
-
-    // Consulta personalizada: Contar usuarios por rol
+    List<Usuario> findByFechaCreacionBetween(LocalDateTime inicio, LocalDateTime fin);
+    List<Usuario> findByEmailContainingOrNombreContaining(String email, String nombre);
+    Long countByActivoTrue();
+    Long countByActivoFalse();
+    List<Usuario> findAllByOrderByFechaCreacionDesc();
+    
+    // Consultas adicionales
+    Optional<Usuario> findByEmail(String email);
+    boolean existsByEmail(String email);
+    
+    // Consulta personalizada 1: Búsqueda por texto
+    @Query("SELECT u FROM Usuario u WHERE " +
+           "LOWER(u.nombre) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +
+           "LOWER(u.apellido) LIKE LOWER(CONCAT('%', :texto, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :texto, '%'))")
+    List<Usuario> buscarPorTexto(@Param("texto") String texto);
+    
+    // Consulta personalizada 2: Conteo por rol
     @Query("SELECT u.rol.nombre, COUNT(u) FROM Usuario u GROUP BY u.rol.nombre")
     List<Object[]> contarUsuariosPorRol();
-
-    // Consulta nativa: Búsqueda avanzada
-    @Query(nativeQuery = true, 
-           value = "SELECT * FROM usuario WHERE activo = :activo AND rol_id = :rolId")
-    List<Usuario> busquedaAvanzada(@Param("activo") Boolean activo, @Param("rolId") Long rolId);
-
-    // Verificar si existe un email
-    boolean existsByEmail(String email);
-
-    // Buscar por email
-    Optional<Usuario> findByEmail(String email);
+    
+    // Consulta personalizada 3: Usuarios por nombre de rol
+    @Query("SELECT u FROM Usuario u WHERE u.rol.nombre = :nombreRol")
+    List<Usuario> buscarPorNombreRol(@Param("nombreRol") String nombreRol);
 }
